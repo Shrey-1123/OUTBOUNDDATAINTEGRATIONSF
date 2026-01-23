@@ -5,7 +5,7 @@ public with sharing class LeadBigObjectIterator implements Iterator<Lead_Staging
 
     public LeadBigObjectIterator(){
         leadRecords = [
-            SELECT SourceSystemId1__c, Company__c, Description__c, Email__c, FirstName__c, LastName__c, Phone__c, Lead_Referrer__c, Website__c, Month_Key1__c FROM Lead_Staging__b WHERE Month_Key1__c = '2025-01' LIMIT 5000
+            SELECT SourceSystemId1__c, Company__c, Description__c, Email__c, FirstName__c, LastName__c, Phone__c, Lead_Referrer__c, Website__c, Month_Key1__c FROM Lead_Staging__b WHERE Month_Key1__c = '2025-01' LIMIT 3000
         ];
     }
 

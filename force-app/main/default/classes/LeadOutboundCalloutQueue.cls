@@ -1,6 +1,6 @@
 public with sharing class LeadOutboundCalloutQueue implements Queueable, Database.AllowsCallouts {
 
-    private static final Integer CHUNK_SIZE = 5000;
+    private static final Integer CHUNK_SIZE = 3000;
     private String batchId;
     public LeadOutboundCalloutQueue(String batchId) {
         this.batchId = batchId;

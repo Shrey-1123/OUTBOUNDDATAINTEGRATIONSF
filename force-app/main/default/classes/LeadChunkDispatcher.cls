@@ -1,6 +1,6 @@
-public with sharing class LeadChunkDispatcher implements Queueable, Database.AllowsCallouts {
+public with sharing class LeadChunkDispatcher implements Queueable {
     
-    private static final Integer CHUNK_SIZE = 1000;
+    private static final Integer CHUNK_SIZE = 3000;
     private String batchId;
     
     public LeadChunkDispatcher(String batchId) {
@@ -16,40 +16,19 @@ public with sharing class LeadChunkDispatcher implements Queueable, Database.All
             Integer startIndex = chunkIndex * CHUNK_SIZE;
             Integer endIndex = Math.min(startIndex + CHUNK_SIZE, totalRecords);
 
-            List<LeadStagingDTO> leadDTOs = new List<LeadStagingDTO>();
+            
             for(Integer i = startIndex; i < endIndex; i++){
                 Lead_Outbound_Staging__c outboundStage = outboundStages[i];
-                LeadStagingDTO leadDTO = (LeadStagingDTO)JSON.deserialize(outboundStage.Payload_JSON__c, LeadStagingDTO.class);
-                leadDTOs.add(leadDTO);
                 outboundStage.Status__c = 'SENT';
                 chunkIndex++;
                 outboundStage.chunkNumber__c = String.valueOf(chunkIndex);
             }
 
-            BulkLeadRequestDTO bulkRequest = new BulkLeadRequestDTO();
-            bulkRequest.batchId = batchId;
-            bulkRequest.SourceSystemName = 'Salesforce Org A'; // later replace with domain name of org
-            bulkRequest.leads = leadDTOs;
-            String requestBody = JSON.serialize(bulkRequest);
-            
-            HttpRequest req = new HttpRequest();
-            req.setEndpoint('https://example.com/api/leads'); // Replace with actual endpoint
-            req.setMethod('POST');
-            req.setHeader('Content-Type', 'application/json');
-            req.setBody(requestBody);
-            Http http = new Http();
-            try {
-                HttpResponse res = http.send(req);
-                if(res.getStatusCode() == 200){
-                    update outboundStages; // later optimize to update only processed records because 200 does not mean all fields of this leads were accepted
-                } else {
-                    // Handle non-200 responses
-                    System.debug('Error response: ' + res.getBody());   
-                }
-            } catch (Exception e) {
-                // Handle exceptions
-                System.debug('Error: ' + e.getMessage());
-            }
+        }
+
+        if(!outboundStages.isEmpty()) {
+            update outboundStages;
+            System.enqueueJob(new LeadOutboundCalloutQueue(batchId));
         }
 
     }

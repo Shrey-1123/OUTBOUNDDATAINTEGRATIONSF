@@ -1,22 +1,28 @@
 public with sharing class LeadOutboundStagingBatch implements Database.Batchable<SObject>, Database.Stateful {
     
-    public String query;
     
-    public LeadOutboundStagingBatch() {
-        this.query = 'SELECT SourceSystemId1__c, Company__c, Description__c, Email__c, FirstName__c, LastName__c, Phone__c, Lead_Referrer__c, Website__c, Month_Key1__c FROM Lead_Staging__b WHERE Month_Key1__c = \'2025-01\' ';
-    }
-    
-    public Database.QueryLocator start(Database.BatchableContext BC) {
+    public Iterable<Lead_Staging__b> start(Database.BatchableContext BC) {
         // INSERT lead integration batch record
-        insert new Lead_Integration_Batch__c(Name = 'Lead Outbound Batch ' + Datetime.now().format(),Status__c = 'IN_PROGRESS',Batch_Id__c = BC.getJobId());
-        return Database.getQueryLocator(query);
+        
+        return new LeadBigObjectIterable();
     }
     
     public void execute(Database.BatchableContext BC, List<Lead_Staging__b> scope) {
         List<Lead_Outbound_Staging__c> stages = new List<Lead_Outbound_Staging__c>();
-        
+        List<String> sourcesystemids = new List<String>();
+        for(Lead_Staging__b lead : scope) {
+            sourcesystemids.add(lead.SourceSystemId1__c);
+        }
+        List<Lead_Outbound_Staging__c> existingStages = [SELECT Source_Lead_Id__c FROM Lead_Outbound_Staging__c WHERE Source_Lead_Id__c IN :sourcesystemids];
+        Set<String> existingSourceIds = new Set<String>();
+        for(Lead_Outbound_Staging__c stage : existingStages) {
+            existingSourceIds.add(stage.Source_Lead_Id__c);
+        }
         // Implement your processing logic here
         for(Lead_Staging__b lead : scope) {
+            if(existingSourceIds.contains(lead.SourceSystemId1__c)) {
+                continue; // Skip if already exists
+            }
             LeadStagingDTO leadDTO = new LeadStagingDTO();
             leadDTO.Company = lead.Company__c;
             leadDTO.Description = lead.Description__c;
@@ -39,12 +45,16 @@ public with sharing class LeadOutboundStagingBatch implements Database.Batchable
         
         if(!stages.isEmpty()) {
             insert stages;
+            System.debug('Inserted ' + stages.size() + ' Lead_Outbound_Staging__c records.');
         }
       
     }
     
     public void finish(Database.BatchableContext BC) {
         // Post-processing logic if needed
+        
+        insert new Lead_Integration_Batch__c(Name = 'Lead Outbound Batch ' + Datetime.now().format(),Status__c = 'IN_PROGRESS',Batch_Id__c = BC.getJobId());
+        System.debug('LeadOutboundStagingBatch finished with Job ID: ' + BC.getJobId());
         System.enqueueJob(new LeadChunkDispatcher(BC.getJobId()));
     }
 
